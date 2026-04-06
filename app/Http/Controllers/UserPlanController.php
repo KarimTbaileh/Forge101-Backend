@@ -9,12 +9,9 @@ use Illuminate\Support\Facades\DB;
 
 class UserPlanController extends Controller
 {
-    /**
-     * Display a listing of the authenticated user's plans.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        $userPlans = UserPlan::where('user_id', auth()->id())
+        $userPlans = UserPlan::where('user_id', $request->user_id)
             ->with(['plan', 'plan.exercises'])
             ->latest()
             ->get();
@@ -22,9 +19,6 @@ class UserPlanController extends Controller
         return response()->json($userPlans);
     }
 
-    /**
-     * Assign a plan to the authenticated user.
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -32,7 +26,7 @@ class UserPlanController extends Controller
             'start_date' => 'required|date',
         ]);
 
-        $exists = UserPlan::where('user_id', auth()->id())
+        $exists = UserPlan::where('user_id', $request->user_id)
             ->where('plan_id', $request->plan_id)
             ->exists();
 
@@ -41,27 +35,19 @@ class UserPlanController extends Controller
         }
 
         $userPlan = UserPlan::create([
-            'user_id'          => auth()->id(),
+            'user_id'          => $request->user_id,
             'plan_id'          => $request->plan_id,
             'start_date'       => $request->start_date,
             'completed'        => false,
             'progress_percent' => 0,
         ]);
 
-        $userPlan->load('plan');
-
-        return response()->json([
-            'message' => 'Successfully subscribed to the plan',
-            'user_plan' => $userPlan
-        ], 201);
+        return response()->json(['message' => 'Subscribed to plan successfully', 'user_plan' => $userPlan], 201);
     }
 
-    /**
-     * Display the specified user plan.
-     */
-    public function show($id)
+    public function show(Request $request, $id)
     {
-        $userPlan = UserPlan::where('user_id', auth()->id())
+        $userPlan = UserPlan::where('user_id', $request->user_id)
             ->with(['plan', 'plan.exercises'])
             ->findOrFail($id);
 
@@ -69,78 +55,53 @@ class UserPlanController extends Controller
     }
 
     /**
-     * Update the progress of a user plan.
+     * Smart Tracking: Complete an exercise and auto-calculate progress
      */
-    public function update(Request $request, $id)
-    {
-        $userPlan = UserPlan::where('user_id', auth()->id())->findOrFail($id);
-
-        $request->validate([
-            'progress_percent' => 'required|integer|between:0,100',
-            'completed'        => 'boolean',
-        ]);
-
-        $userPlan->update([
-            'progress_percent' => $request->progress_percent,
-            'completed'        => $request->completed ?? ($request->progress_percent == 100),
-        ]);
-
-        return response()->json([
-            'message' => 'Progress updated successfully',
-            'user_plan' => $userPlan
-        ]);
-    }
-
-    /**
-     * Unsubscribe from a plan.
-     */
-    public function destroy($id)
-    {
-        $userPlan = UserPlan::where('user_id', auth()->id())->findOrFail($id);
-        $userPlan->delete();
-
-        return response()->json([
-            'message' => 'Successfully unsubscribed from the plan'
-        ]);
-    }
-
-
     public function completeExercise(Request $request, $userPlanId, $exerciseId)
     {
         $userPlan = UserPlan::where('id', $userPlanId)
-            ->where('user_id', auth()->id())
+            ->where('user_id', $request->user_id)
             ->firstOrFail();
 
+        // Update or Create exercise progress record
         UserExerciseProgress::updateOrCreate(
             ['user_plan_id' => $userPlanId, 'exercise_id' => $exerciseId],
             ['is_completed' => true, 'completed_at' => now()]
         );
 
-
+        // Get total exercises in the plan
         $totalExercises = DB::table('plan_exercises')
             ->where('plan_id', $userPlan->plan_id)
             ->count();
 
+        // Get completed exercises for this subscription
         $completedExercises = UserExerciseProgress::where('user_plan_id', $userPlanId)
             ->where('is_completed', true)
             ->count();
 
+        // Calculate percentage
         $progressPercent = $totalExercises > 0
             ? round(($completedExercises / $totalExercises) * 100)
             : 0;
 
+        // Update subscription status
         $userPlan->update([
             'progress_percent' => $progressPercent,
-            'is_completed' => $progressPercent >= 100
+            'completed' => $progressPercent >= 100
         ]);
 
         return response()->json([
-            'message' => 'Progress has been successfully updated.',
+            'message' => 'Progress updated successfully',
             'progress_percent' => $progressPercent,
-            'is_completed' => $userPlan->is_completed
+            'is_completed' => $userPlan->completed
         ]);
     }
 
+    public function destroy(Request $request, $id)
+    {
+        $userPlan = UserPlan::where('user_id', $request->user_id)->findOrFail($id);
+        $userPlan->delete();
 
-
+        return response()->json(['message' => 'Unsubscribed from plan successfully']);
+    }
 }

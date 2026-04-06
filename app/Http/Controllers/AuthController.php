@@ -4,89 +4,43 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name'     => 'required|string|max:50|unique:users',
-            'email'    => 'required|email|unique:users',
-            'password' => 'required|min:6',
-        ]);
-
-        $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user,
-            'token' => $token
-        ], 201);
-    }
-
-    public function login(Request $request)
-    {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
-
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['invalid email or password'],
-            ]);
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'user' => $user,
-            'token' => $token
-        ]);
-    }
-
-    public function logout(Request $request)
-    {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Logged out']);
-    }
-
+    /**
+     * Update user profile (Sync with Supabase and handle image upload)
+     */
     public function updateProfile(Request $request)
     {
-        $user = auth()->user();
-
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|email|unique:users,email,' . $user->id,
-            'password' => 'sometimes|required|min:8|confirmed',
             'profile_image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
-        if (isset($validated['password'])) {
-            $validated['password'] = Hash::make($validated['password']);
-        }
+        // Sync Supabase User with Local MySQL User
+        $user = User::updateOrCreate(
+            ['id' => $request->user_id],
+            [
+                'name' => $request->name ?? ($request->supabase_user->user_metadata->name ?? 'User'),
+                'email' => $request->supabase_user->email
+            ]
+        );
 
-        // معالجة رفع الصورة
+        // Handle Profile Image Upload
         if ($request->hasFile('profile_image')) {
             if ($user->profile_image) {
                 Storage::disk('public')->delete($user->profile_image);
             }
             $imagePath = $request->file('profile_image')->store('profile_images', 'public');
-            $validated['profile_image'] = $imagePath;
+            $user->profile_image = $imagePath;
+            $user->save();
         }
 
-        $user->update($validated);
+        if (isset($validated['name'])) {
+            $user->name = $validated['name'];
+            $user->save();
+        }
 
         return response()->json([
             'message' => 'Profile updated successfully',
