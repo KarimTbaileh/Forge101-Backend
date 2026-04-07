@@ -8,9 +8,12 @@ use Illuminate\Http\Request;
 
 class PlanController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Plan::with('exercises')->get());
+
+        $plans = Plan::where('created_by_user_id', $request->user_id)->get();
+
+        return response()->json($plans);
     }
 
     public function show($id)
