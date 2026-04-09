@@ -12,13 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // تسجيل Middleware جديد باستخدام array
         $middleware->alias([
             'auth.supabase' => \App\Http\Middleware\SupabaseAuth::class,
         ]);
-
-        // لو بدك يشتغل على كل Route Globally:
-        // $middleware->prepend(\App\Http\Middleware\SupabaseAuth::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

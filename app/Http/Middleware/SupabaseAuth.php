@@ -29,18 +29,14 @@ class SupabaseAuth
             $jwksData = $response->json();
             $keys = JWK::parseKeySet($jwksData);
 
-            // فك التوكن
-            // ... داخل دالة handle ...
             $decoded = JWT::decode($token, $keys);
 
-// تحويل كل شيء لمصفوفة بشكل عميق (Deep Array Conversion)
             $supabaseUserArray = json_decode(json_encode($decoded), true);
 
             $request->merge([
                 'supabase_user' => $supabaseUserArray,
                 'user_id' => $supabaseUserArray['sub']
             ]);
-// ...
 
 
             return $next($request);

@@ -12,7 +12,7 @@ return new class extends Migration {
             $table->string('name', 100);
             $table->string('difficulty', 20);
             $table->integer('duration_minutes');
-            $table->string('created_by_user_id'); // تغيير ليكون نصياً (UUID)
+            $table->string('created_by_user_id');
             $table->timestamps();
         });
     }

@@ -29,7 +29,6 @@ class PlanController extends Controller
             'duration_minutes'  => 'required|integer|min:1',
         ]);
 
-        // الآن نصل للبيانات كمصفوفة بأمان تام
         $supabaseUser = $request->supabase_user;
 
         \App\Models\User::updateOrCreate(

@@ -11,13 +11,32 @@ class UserPlanController extends Controller
 {
     public function index(Request $request)
     {
-        $userPlans = UserPlan::where('user_id', $request->user_id)
-            ->with(['plan', 'plan.exercises'])
-            ->latest()
+        $subscriptions = UserPlan::where('user_id', $request->user_id)
+            ->with('plan')
             ->get();
 
-        return response()->json($userPlans);
+
+        $subscriptions->each(function ($sub) {
+            $currentExerciseIds = DB::table('plan_exercises')
+                ->where('plan_id', $sub->plan_id)
+                ->pluck('exercise_id');
+
+            $total = $currentExerciseIds->count();
+            $completed = UserExerciseProgress::where('user_plan_id', $sub->id)
+                ->whereIn('exercise_id', $currentExerciseIds)
+                ->where('is_completed', true)
+                ->count();
+
+            $percent = $total > 0 ? round(($completed / $total) * 100) : 0;
+
+            $sub->progress_percent = $percent;
+            $sub->completed = ($percent >= 100);
+            $sub->save();
+        });
+
+        return response()->json($subscriptions);
     }
+
 
     public function store(Request $request)
     {
@@ -63,28 +82,26 @@ class UserPlanController extends Controller
             ->where('user_id', $request->user_id)
             ->firstOrFail();
 
-        // Update or Create exercise progress record
         UserExerciseProgress::updateOrCreate(
             ['user_plan_id' => $userPlanId, 'exercise_id' => $exerciseId],
             ['is_completed' => true, 'completed_at' => now()]
         );
 
-        // Get total exercises in the plan
-        $totalExercises = DB::table('plan_exercises')
+        $currentExerciseIds = DB::table('plan_exercises')
             ->where('plan_id', $userPlan->plan_id)
-            ->count();
+            ->pluck('exercise_id');
 
-        // Get completed exercises for this subscription
+        $totalExercises = $currentExerciseIds->count();
+
         $completedExercises = UserExerciseProgress::where('user_plan_id', $userPlanId)
+            ->whereIn('exercise_id', $currentExerciseIds)
             ->where('is_completed', true)
             ->count();
 
-        // Calculate percentage
         $progressPercent = $totalExercises > 0
             ? round(($completedExercises / $totalExercises) * 100)
             : 0;
 
-        // Update subscription status
         $userPlan->update([
             'progress_percent' => $progressPercent,
             'completed' => $progressPercent >= 100
@@ -96,6 +113,7 @@ class UserPlanController extends Controller
             'is_completed' => $userPlan->completed
         ]);
     }
+
 
     public function destroy(Request $request, $id)
     {

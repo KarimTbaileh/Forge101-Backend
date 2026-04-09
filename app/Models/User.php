@@ -10,7 +10,7 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    // 1. السماح بتعبئة الـ id يدوياً (UUID من Supabase)
+
     protected $fillable = [
         'id',
         'name',
@@ -19,10 +19,10 @@ class User extends Authenticatable
         'profile_image'
     ];
 
-    // 2. إيقاف الترقيم التلقائي لأننا نستخدم UUID نصي
+
     public $incrementing = false;
 
-    // 3. تحديد نوع المفتاح الأساسي كـ string
+
     protected $keyType = 'string';
 
     protected $hidden = [
