@@ -9,7 +9,7 @@ class Plan extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'difficulty', 'duration_minutes', 'created_by_user_id'];
+    protected $fillable = ['name', 'difficulty', 'duration_minutes', 'created_by_user_id','image_url'];
 
     public function creator()
     {

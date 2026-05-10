@@ -24,31 +24,32 @@ class PlanController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'              => 'required|string|max:100',
-            'difficulty'        => 'required|string|max:20',
-            'duration_minutes'  => 'required|integer|min:1',
+            'name' => 'required|string|max:100',
+            'difficulty' => 'required|string|max:20',
+            'duration_minutes' => 'required|integer|min:1',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB
         ]);
 
-        $supabaseUser = $request->supabase_user;
+        $imageUrl = null;
 
-        \App\Models\User::updateOrCreate(
-            ['id' => $request->user_id],
-            [
-                'name' => $supabaseUser['user_metadata']['name'] ?? 'Supabase User',
-                'email' => $supabaseUser['email'] ?? 'no-email@supabase.com'
-            ]
-        );
+        if ($request->hasFile('image')) {
+            $image = $request->file('image');
+            $filename = time() . '_' . $image->getClientOriginalName();
+            $path = $image->storeAs('plans', $filename, 'public');
+            $imageUrl = asset('storage/' . $path);
+        }
 
-        $plan = \App\Models\Plan::create([
-            'name'                => $request->name,
-            'difficulty'          => $request->difficulty,
-            'duration_minutes'    => $request->duration_minutes,
-            'created_by_user_id'  => $request->user_id,
+        $plan = Plan::create([
+            'name' => $request->name,
+            'difficulty' => $request->difficulty,
+            'duration_minutes' => $request->duration_minutes,
+            'created_by_user_id' => $request->user_id,
+            'image_url' => $imageUrl,
         ]);
 
         return response()->json([
             'message' => 'Plan created successfully',
-            'plan'    => $plan
+            'plan' => $plan
         ], 201);
     }
 
