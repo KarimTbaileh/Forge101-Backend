@@ -24,55 +24,58 @@ class PlanController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:100',
-            'difficulty' => 'required|string|max:20',
-            'duration_minutes' => 'required|integer|min:1',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB
+            'name'              => 'required|string|max:100',
+            'difficulty'        => 'required|string|max:20',
+            'duration_minutes'  => 'required|integer|min:1',
+            'image_url'         => 'nullable|string',
         ]);
 
-        $imageUrl = null;
+        $supabaseUser = $request->supabase_user;
 
-        if ($request->hasFile('image')) {
-            $image = $request->file('image');
-            $filename = time() . '_' . $image->getClientOriginalName();
-            $path = $image->storeAs('plans', $filename, 'public');
-            $imageUrl = asset('storage/' . $path);
-        }
+        \App\Models\User::updateOrCreate(
+            ['id' => $request->user_id],
+            [
+                'name' => $supabaseUser['user_metadata']['name'] ?? 'Supabase User',
+                'email' => $supabaseUser['email'] ?? 'no-email@supabase.com'
+            ]
+        );
 
         $plan = Plan::create([
-            'name' => $request->name,
-            'difficulty' => $request->difficulty,
-            'duration_minutes' => $request->duration_minutes,
-            'created_by_user_id' => $request->user_id,
-            'image_url' => $imageUrl,
+            'name'                => $request->name,
+            'difficulty'          => $request->difficulty,
+            'duration_minutes'    => $request->duration_minutes,
+            'created_by_user_id'  => $request->user_id,
+            'image_url'           => $request->image_url,
         ]);
 
         return response()->json([
             'message' => 'Plan created successfully',
-            'plan' => $plan
+            'plan'    => $plan
         ], 201);
     }
 
 
 
 
-    public function update(Request $request, Plan $plan)
+    public function update(Request $request, $id)
     {
-        if ($plan->created_by_user_id !== $request->user_id) {
-            return response()->json(['message' => 'Unauthorized to update this plan'], 403);
-        }
+        $plan = Plan::findOrFail($id);
 
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:100',
-            'difficulty' => 'sometimes|required|string|max:20',
-            'duration_minutes' => 'sometimes|required|integer',
+        $request->validate([
+            'name'              => 'sometimes|string|max:100',
+            'difficulty'        => 'sometimes|string|max:20',
+            'duration_minutes'  => 'sometimes|integer|min:1',
+            'image_url'         => 'nullable|string',
         ]);
 
-        $plan->update($validated);
 
-        return response()->json(['message' => 'Plan updated successfully', 'plan' => $plan]);
+        $plan->update($request->only(['name', 'difficulty', 'duration_minutes', 'image_url']));
+
+        return response()->json([
+            'message' => 'Plan updated successfully',
+            'plan'    => $plan
+        ]);
     }
-
     public function destroy(Request $request, Plan $plan)
     {
         if ($plan->created_by_user_id !== $request->user_id) {
