@@ -82,8 +82,18 @@ class PlanController extends Controller
             return response()->json(['message' => 'Unauthorized to delete this plan'], 403);
         }
 
-        $plan->delete();
-        return response()->json(['message' => 'Plan deleted successfully']);
+        try {
+            $plan->exercises()->detach();
+
+            $plan->delete();
+
+            return response()->json(['message' => 'Plan deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to delete plan',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function exercises($id)
