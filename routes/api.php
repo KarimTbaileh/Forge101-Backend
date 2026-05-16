@@ -18,12 +18,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth.supabase')->group(function () {
 
         // --- إدارة الحساب (Profile) ---
-        // استرجاع بيانات المستخدم القادمة من توكن Supabase
-        Route::get('/user', function (Request $request) {
-            return response()->json($request->supabase_user);
-        });
-
-        // تحديث البروفايل (الاسم، الصورة)
+        Route::get('/user', [AuthController::class, 'getProfile']);
         Route::put('/user', [AuthController::class, 'updateProfile']);
 
         // --- الخطط (Plans) ---

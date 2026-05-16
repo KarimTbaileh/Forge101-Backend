@@ -8,43 +8,53 @@ use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
-    /**
-     * Update user profile (Sync with Supabase and handle image upload)
-     */
+    public function getProfile(Request $request)
+    {
+        $user = User::findOrFail($request->user_id);
+
+        return response()->json([
+            'id'         => $user->id,
+            'name'       => $user->name,
+            'email'      => $user->email,
+            'avatar_url' => $user->avatar_url,
+        ]);
+    }
+
     public function updateProfile(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
+            'name'       => 'sometimes|required|string|max:255',
+            'avatar_url' => 'sometimes|nullable|url|max:2048',
             'profile_image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
-        // Sync Supabase User with Local MySQL User
-        $user = User::updateOrCreate(
-            ['id' => $request->user_id],
-            [
-                'name' => $request->name ?? ($request->supabase_user->user_metadata->name ?? 'User'),
-                'email' => $request->supabase_user->email
-            ]
-        );
+        $user = User::findOrFail($request->user_id);
 
-        // Handle Profile Image Upload
+        if (isset($validated['name'])) {
+            $user->name = $validated['name'];
+        }
+
+        if (array_key_exists('avatar_url', $validated)) {
+            $user->avatar_url = $validated['avatar_url'];
+        }
+
         if ($request->hasFile('profile_image')) {
             if ($user->profile_image) {
                 Storage::disk('public')->delete($user->profile_image);
             }
-            $imagePath = $request->file('profile_image')->store('profile_images', 'public');
-            $user->profile_image = $imagePath;
-            $user->save();
+            $user->profile_image = $request->file('profile_image')->store('profile_images', 'public');
         }
 
-        if (isset($validated['name'])) {
-            $user->name = $validated['name'];
-            $user->save();
-        }
+        $user->save();
 
         return response()->json([
             'message' => 'Profile updated successfully',
-            'user' => $user
+            'user'    => [
+                'id'         => $user->id,
+                'name'       => $user->name,
+                'email'      => $user->email,
+                'avatar_url' => $user->avatar_url,
+            ],
         ]);
     }
 }
